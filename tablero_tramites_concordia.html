@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero de Trámites — Municipalidad de Concordia</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f4f2ee;
+    --surface: #faf9f7;
+    --surface2: #f0ede8;
+    --border: rgba(60,50,30,0.12);
+    --border-med: rgba(60,50,30,0.22);
+    --text-primary: #1a1612;
+    --text-secondary: #6b6157;
+    --text-muted: #9e9488;
+    --green: #1a6b47;
+    --green-bg: #ddf0e6;
+    --amber: #8a5c00;
+    --amber-bg: #fef0cc;
+    --red: #8a2020;
+    --red-bg: #fde8e8;
+    --blue: #1a3f7a;
+    --blue-bg: #ddeafc;
+    --accent: #2c4a8a;
+    --accent-light: #e8edf8;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--text-primary);
+    color: #fff;
+    padding: 0 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .escudo {
+    width: 28px;
+    height: 28px;
+    background: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .header-title {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+  .header-sub {
+    font-size: 11px;
+    opacity: 0.5;
+    margin-top: 1px;
+  }
+  .header-right {
+    font-family: var(--mono);
+    font-size: 11px;
+    opacity: 0.6;
+    text-align: right;
+  }
+  .live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: #4caf7d;
+    border-radius: 50%;
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* MAIN */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 2rem 4rem;
+  }
+
+  .page-heading {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-med);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .page-heading h1 {
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .page-heading h1 strong {
+    font-weight: 500;
+  }
+  .period-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid rgba(44,74,138,0.2);
+    border-radius: 4px;
+    padding: 4px 10px;
+    white-space: nowrap;
+  }
+
+  /* KPI GRID */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 700px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .charts-row { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 420px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 10px 10px 0 0;
+  }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.amber::before { background: #d4900a; }
+  .kpi-card.blue::before { background: var(--accent); }
+  .kpi-card.neutral::before { background: var(--text-muted); }
+
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--text-primary);
+  }
+  .kpi-value span {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: 2px;
+  }
+  .kpi-delta {
+    margin-top: 8px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .kpi-delta.up { color: var(--green); }
+  .kpi-delta.down-good { color: var(--green); }
+  .kpi-delta.warn { color: var(--amber); }
+
+  /* CHARTS */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .chart-card.full {
+    grid-column: 1 / -1;
+  }
+  .chart-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .chart-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .legend-line {
+    width: 18px;
+    height: 2px;
+    flex-shrink: 0;
+  }
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  /* TABLE */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 560px;
+  }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 0 12px 10px 0;
+    border-bottom: 1px solid var(--border-med);
+  }
+  thead th:last-child { text-align: right; padding-right: 0; }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td {
+    padding: 11px 12px 11px 0;
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+  tbody td:last-child { text-align: right; padding-right: 0; }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-neutral { background: var(--surface2); color: var(--text-muted); }
+  .badge-amber { background: var(--amber-bg); color: var(--amber); }
+
+  /* PROGRESS BAR */
+  .progress-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 5px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 60px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+  }
+  .progress-fill.green { background: var(--green); }
+  .progress-fill.amber { background: #d4900a; }
+
+  /* FOOTER */
+  .footer {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .footer p {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .footer-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    border-radius: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+  }
+
+  /* SECTION LABEL */
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    margin-top: 1.5rem;
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="escudo">⚖</div>
+    <div>
+      <div class="header-title">Municipalidad de Concordia</div>
+      <div class="header-sub">Secretaría de Desarrollo Económico · datos abiertos</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="live-dot"></span>en línea<br>
+    actualizado 07/04/2026 08:00
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="page-heading">
+    <h1>Tablero de <strong>trámites y resultados</strong></h1>
+    <span class="period-badge">Q1 2026 · enero – abril</span>
+  </div>
+
+  <p class="section-label">Indicadores clave</p>
+
+  <div class="kpi-grid">
+    <div class="kpi-card green">
+      <div class="kpi-label">Tiempo prom. habilitación</div>
+      <div class="kpi-value">18 <span>días</span></div>
+      <div class="kpi-delta down-good">▼ 4 días vs. Q4 2025</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Expedientes en término</div>
+      <div class="kpi-value">74 <span>%</span></div>
+      <div class="kpi-delta up">▲ 6 pp vs. Q4 2025</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Altas comerciales (mes)</div>
+      <div class="kpi-value">143</div>
+      <div class="kpi-delta up">▲ 12% vs. marzo</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">Trámites en curso</div>
+      <div class="kpi-value">389</div>
+      <div class="kpi-delta warn">◆ 47 con demora</div>
+    </div>
+  </div>
+
+  <p class="section-label">Gráficos de evolución</p>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Altas comerciales por mes</div>
+      <div class="chart-sub">Últimos 12 meses vs. meta mensual (120)</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#4a7fd4"></span>Altas aprobadas</div>
+        <div class="legend-item"><span class="legend-line" style="background:#d4900a; border-top: 2px dashed #d4900a;"></span>Meta (120)</div>
+      </div>
+      <div class="canvas-wrap" style="height:210px">
+        <canvas id="altasChart" role="img" aria-label="Gráfico de barras de altas comerciales mensuales últimos 12 meses">Altas: May 98, Jun 102, Jul 88, Ago 115, Sep 109, Oct 121, Nov 133, Dic 97, Ene 118, Feb 125, Mar 131, Abr 143.</canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Tiempo promedio de habilitación</div>
+      <div class="chart-sub">En días hábiles · límite legal 30 días</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#6c5ce7"></span>Días promedio</div>
+        <div class="legend-item"><span class="legend-line" style="background:#e24b4a; border-top: 2px dashed #e24b4a;"></span>Límite legal</div>
+      </div>
+      <div class="canvas-wrap" style="height:210px">
+        <canvas id="tiempoChart" role="img" aria-label="Gráfico de líneas de tiempo promedio de habilitación en días">Tiempo prom.: May 27, Jun 25, Jul 28, Ago 24, Sep 22, Oct 26, Nov 23, Dic 24, Ene 21, Feb 20, Mar 19, Abr 18.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card full">
+      <div class="chart-title">Expedientes resueltos en término vs. con demora</div>
+      <div class="chart-sub">Evolución trimestral — porcentaje del total</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#27ae76"></span>En término</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#e57373"></span>Con demora</div>
+      </div>
+      <div class="canvas-wrap" style="height:180px">
+        <canvas id="terminoChart" role="img" aria-label="Gráfico de barras agrupadas de expedientes en término vs demora por trimestre">Q1 2025: 58% en término, 42% demora. Q2: 63/37. Q3: 68/32. Q4: 71/29. Q1 2026: 74/26.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <p class="section-label">Trámites activos por tipo</p>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo de trámite</th>
+          <th>En curso</th>
+          <th>En término</th>
+          <th>Con demora</th>
+          <th>Cumplimiento</th>
+          <th style="text-align:right">Tiempo prom.</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Habilitación comercial</td>
+          <td>142</td>
+          <td><span class="badge badge-green">109</span></td>
+          <td><span class="badge badge-red">33</span></td>
+          <td>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar"><div class="progress-fill green" style="width:77%"></div></div>
+              <span style="font-size:11px;color:var(--text-secondary);font-family:var(--mono)">77%</span>
+            </div>
+          </td>
+          <td><span style="font-family:var(--mono);font-size:12px">18 días</span></td>
+        </tr>
+        <tr>
+          <td>Renovación de habilitación</td>
+          <td>98</td>
+          <td><span class="badge badge-green">84</span></td>
+          <td><span class="badge badge-amber">14</span></td>
+          <td>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar"><div class="progress-fill green" style="width:86%"></div></div>
+              <span style="font-size:11px;color:var(--text-secondary);font-family:var(--mono)">86%</span>
+            </div>
+          </td>
+          <td><span style="font-family:var(--mono);font-size:12px">9 días</span></td>
+        </tr>
+        <tr>
+          <td>Permiso de obra</td>
+          <td>87</td>
+          <td><span class="badge badge-green">87</span></td>
+          <td><span class="badge badge-neutral">—</span></td>
+          <td>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div>
+              <span style="font-size:11px;color:var(--text-secondary);font-family:var(--mono)">100%</span>
+            </div>
+          </td>
+          <td><span style="font-family:var(--mono);font-size:12px">22 días</span></td>
+        </tr>
+        <tr>
+          <td>Uso de suelo</td>
+          <td>62</td>
+          <td><span class="badge badge-green">62</span></td>
+          <td><span class="badge badge-neutral">—</span></td>
+          <td>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div>
+              <span style="font-size:11px;color:var(--text-secondary);font-family:var(--mono)">100%</span>
+            </div>
+          </td>
+          <td><span style="font-family:var(--mono);font-size:12px">11 días</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <p>Fuente: Sistema de Gestión de Expedientes (SGE) · Municipalidad de Concordia<br>
+    Los datos se actualizan automáticamente cada 24 horas. Plataforma de transparencia administrativa.</p>
+    <span class="footer-badge">datos abiertos · uso libre</span>
+  </div>
+
+</main>
+
+<script>
+const meses = ['May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar','Abr'];
+const gridColor = 'rgba(60,50,30,0.07)';
+const tickColor = '#9e9488';
+const baseFont = { family: "'DM Sans', sans-serif", size: 11 };
+
+new Chart(document.getElementById('altasChart'), {
+  type: 'bar',
+  data: {
+    labels: meses,
+    datasets: [
+      {
+        label: 'Altas aprobadas',
+        data: [98,102,88,115,109,121,133,97,118,125,131,143],
+        backgroundColor: 'rgba(74,127,212,0.75)',
+        borderColor: '#4a7fd4',
+        borderWidth: 1,
+        borderRadius: 3
+      },
+      {
+        label: 'Meta mensual',
+        data: Array(12).fill(120),
+        type: 'line',
+        borderColor: '#d4900a',
+        borderDash: [5,4],
+        pointRadius: 0,
+        borderWidth: 1.5,
+        fill: false
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { font: baseFont, color: tickColor, autoSkip: false, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      y: { ticks: { font: baseFont, color: tickColor }, grid: { color: gridColor }, border: { display: false }, beginAtZero: true }
+    }
+  }
+});
+
+new Chart(document.getElementById('tiempoChart'), {
+  type: 'line',
+  data: {
+    labels: meses,
+    datasets: [
+      {
+        label: 'Días promedio',
+        data: [27,25,28,24,22,26,23,24,21,20,19,18],
+        borderColor: '#6c5ce7',
+        backgroundColor: 'rgba(108,92,231,0.07)',
+        pointRadius: 3,
+        pointBackgroundColor: '#6c5ce7',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35
+      },
+      {
+        label: 'Límite legal',
+        data: Array(12).fill(30),
+        borderColor: '#e24b4a',
+        borderDash: [5,4],
+        pointRadius: 0,
+        borderWidth: 1.5,
+        fill: false
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { font: baseFont, color: tickColor, autoSkip: false, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      y: { ticks: { font: baseFont, color: tickColor }, grid: { color: gridColor }, border: { display: false }, min: 0, max: 35 }
+    }
+  }
+});
+
+new Chart(document.getElementById('terminoChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Q1 2025','Q2 2025','Q3 2025','Q4 2025','Q1 2026'],
+    datasets: [
+      {
+        label: 'En término',
+        data: [58,63,68,71,74],
+        backgroundColor: 'rgba(39,174,118,0.75)',
+        borderColor: '#27ae76',
+        borderWidth: 1,
+        borderRadius: 3
+      },
+      {
+        label: 'Con demora',
+        data: [42,37,32,29,26],
+        backgroundColor: 'rgba(229,115,115,0.65)',
+        borderColor: '#e57373',
+        borderWidth: 1,
+        borderRadius: 3
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { font: baseFont, color: tickColor }, grid: { display: false }, border: { display: false } },
+      y: { ticks: { font: baseFont, color: tickColor, callback: v => v + '%' }, grid: { color: gridColor }, border: { display: false }, max: 100 }
+    }
+  }
+});
+</script>
+</body>
+</html>
