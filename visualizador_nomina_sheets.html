@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tablero de movimientos de nómina</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --card: #ffffff;
+      --line: #dfd9cf;
+      --text: #1d1b18;
+      --muted: #6c655d;
+      --accent: #244a85;
+      --accent2: #1c7c54;
+      --accent3: #b66b11;
+      --danger: #b03a2e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      background: #181613;
+      color: white;
+      padding: 18px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    header p {
+      margin: 6px 0 0;
+      color: rgba(255,255,255,0.72);
+      font-size: 14px;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .filters label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .filters input, .filters select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: white;
+      font-size: 14px;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .kpi-title {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 10px;
+    }
+    .kpi-value {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .kpi-sub {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 12px;
+    }
+    .table-wrap {
+      overflow: auto;
+      max-height: 520px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1100px;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #ece7df;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 1;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .alta { background: rgba(28,124,84,.12); color: var(--accent2); }
+    .baja { background: rgba(176,58,46,.12); color: var(--danger); }
+    .traslado { background: rgba(182,107,17,.14); color: var(--accent3); }
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .loading {
+      text-align: center;
+      padding: 36px;
+      color: var(--muted);
+    }
+    @media (max-width: 980px) {
+      .filters { grid-template-columns: 1fr 1fr; }
+      .kpis { grid-template-columns: 1fr 1fr; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .filters, .kpis { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Tablero de movimientos de nómina</h1>
+    <p>Visualizador conectado a Google Sheets · se actualiza cuando cambia la planilla</p>
+  </header>
+
+  <div class="container">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="toolbar">
+        <div>
+          <h2 class="section-title">Filtros</h2>
+          <div class="small" id="status">Cargando datos…</div>
+        </div>
+        <button class="btn" id="clearFilters">Limpiar filtros</button>
+      </div>
+      <div class="filters">
+        <div>
+          <label for="search">Buscar</label>
+          <input id="search" placeholder="Apellido, nombre, decreto, cargo, observaciones" />
+        </div>
+        <div>
+          <label for="movimiento">Movimiento</label>
+          <select id="movimiento"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label for="anio">Año</label>
+          <select id="anio"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label for="dependencia">Dependencia</label>
+          <select id="dependencia"><option value="">Todas</option></select>
+        </div>
+        <div>
+          <label for="subdependencia">Subdependencia</label>
+          <select id="subdependencia"><option value="">Todas</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="card">
+        <div class="kpi-title">Movimientos</div>
+        <div class="kpi-value" id="kpiTotal">0</div>
+        <div class="kpi-sub">Registros visibles</div>
+      </div>
+      <div class="card">
+        <div class="kpi-title">Altas</div>
+        <div class="kpi-value" id="kpiAltas">0</div>
+        <div class="kpi-sub">Dentro del filtro actual</div>
+      </div>
+      <div class="card">
+        <div class="kpi-title">Bajas</div>
+        <div class="kpi-value" id="kpiBajas">0</div>
+        <div class="kpi-sub">Incluye bajas y renuncias</div>
+      </div>
+      <div class="card">
+        <div class="kpi-title">Dependencias</div>
+        <div class="kpi-value" id="kpiDependencias">0</div>
+        <div class="kpi-sub">Con movimientos visibles</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2 class="section-title">Movimientos por mes</h2>
+        <canvas id="chartMeses" height="120"></canvas>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Tipos de movimiento</h2>
+        <canvas id="chartTipos" height="120"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <h2 class="section-title">Top dependencias</h2>
+        <canvas id="chartDependencias" height="180"></canvas>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Top cargos</h2>
+        <canvas id="chartCargos" height="180"></canvas>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Observaciones</h2>
+        <div id="obsBox" class="small"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="section-title">Detalle de registros</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Apellido</th>
+              <th>Nombre</th>
+              <th>Movimiento</th>
+              <th>Fecha</th>
+              <th>Decreto</th>
+              <th>Cargo</th>
+              <th>Dependencia</th>
+              <th>Subdependencia</th>
+              <th>Observaciones</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="9" class="loading">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vREPK0VRY6r0JmRQ_RwU4Pe1J2TlydDwrZQgZh5AYkDXJrJp_Np5x4wd9GfTn4KDSM2EQHVMpLkZLEY/pub?gid=408158073&single=true&output=csv';
+
+    const state = { raw: [], filtered: [] };
+    const charts = {};
+
+    const els = {
+      search: document.getElementById('search'),
+      movimiento: document.getElementById('movimiento'),
+      anio: document.getElementById('anio'),
+      dependencia: document.getElementById('dependencia'),
+      subdependencia: document.getElementById('subdependencia'),
+      status: document.getElementById('status'),
+      tableBody: document.getElementById('tableBody'),
+      obsBox: document.getElementById('obsBox'),
+      clearFilters: document.getElementById('clearFilters'),
+      kpiTotal: document.getElementById('kpiTotal'),
+      kpiAltas: document.getElementById('kpiAltas'),
+      kpiBajas: document.getElementById('kpiBajas'),
+      kpiDependencias: document.getElementById('kpiDependencias'),
+    };
+
+    function norm(v) {
+      return String(v || '').trim();
+    }
+
+    function parseDate(raw) {
+      const s = norm(raw).replace(/\s+/g, '').replace(/-/g, '/');
+      if (!s) return null;
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+      if (!m) return null;
+      let day = Number(m[1]);
+      let month = Number(m[2]);
+      let year = m[3] ? Number(m[3]) : null;
+      if (!year) return null;
+      if (year < 100) year += 2000;
+      if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+      return new Date(year, month - 1, day);
+    }
+
+    function fmtDate(d) {
+      if (!d || isNaN(d)) return '';
+      return d.toLocaleDateString('es-AR');
+    }
+
+    function monthKey(d) {
+      if (!d || isNaN(d)) return 'Sin fecha';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+    }
+
+    function monthLabel(key) {
+      if (key === 'Sin fecha') return key;
+      const [y, m] = key.split('-');
+      const names = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      return `${names[Number(m)-1]} ${y}`;
+    }
+
+    function movementClass(v) {
+      const s = norm(v).toLowerCase();
+      if (s.includes('traslado')) return 'traslado';
+      if (s.includes('baja')) return 'baja';
+      return 'alta';
+    }
+
+    function fillSelect(el, values, keepFirst = true) {
+      const first = keepFirst ? el.options[0].outerHTML : '';
+      el.innerHTML = first + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    function buildOptions() {
+      fillSelect(els.movimiento, [...new Set(state.raw.map(r => r.movimiento).filter(Boolean))].sort());
+      fillSelect(els.anio, [...new Set(state.raw.map(r => r.anio).filter(Boolean))].sort((a,b)=>b-a));
+      fillSelect(els.dependencia, [...new Set(state.raw.map(r => r.dependencia).filter(Boolean))].sort());
+      updateSubdependencias();
+    }
+
+    function updateSubdependencias() {
+      const dep = els.dependencia.value;
+      let rows = state.raw;
+      if (dep) rows = rows.filter(r => r.dependencia === dep);
+      fillSelect(els.subdependencia, [...new Set(rows.map(r => r.subdependencia).filter(Boolean))].sort());
+    }
+
+    function applyFilters() {
+      const q = norm(els.search.value).toLowerCase();
+      const movimiento = els.movimiento.value;
+      const anio = els.anio.value;
+      const dependencia = els.dependencia.value;
+      const subdependencia = els.subdependencia.value;
+
+      state.filtered = state.raw.filter(r => {
+        if (movimiento && r.movimiento !== movimiento) return false;
+        if (anio && String(r.anio) !== anio) return false;
+        if (dependencia && r.dependencia !== dependencia) return false;
+        if (subdependencia && r.subdependencia !== subdependencia) return false;
+        if (q) {
+          const bag = [r.apellido, r.nombre, r.decreto, r.movimiento, r.cargo, r.dependencia, r.subdependencia, r.observaciones].join(' ').toLowerCase();
+          if (!bag.includes(q)) return false;
+        }
+        return true;
+      });
+
+      renderAll();
+    }
+
+    function renderKPIs() {
+      const rows = state.filtered;
+      els.kpiTotal.textContent = rows.length.toLocaleString('es-AR');
+      els.kpiAltas.textContent = rows.filter(r => norm(r.movimiento).toLowerCase().includes('alta')).length.toLocaleString('es-AR');
+      els.kpiBajas.textContent = rows.filter(r => norm(r.movimiento).toLowerCase().includes('baja')).length.toLocaleString('es-AR');
+      els.kpiDependencias.textContent = new Set(rows.map(r => r.dependencia).filter(Boolean)).size.toLocaleString('es-AR');
+    }
+
+    function makeChart(id, config) {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(document.getElementById(id), config);
+    }
+
+    function renderCharts() {
+      const rows = state.filtered;
+
+      const byMonth = {};
+      rows.forEach(r => {
+        const k = monthKey(r.fecha);
+        byMonth[k] = (byMonth[k] || 0) + 1;
+      });
+      const monthKeys = Object.keys(byMonth).sort();
+      makeChart('chartMeses', {
+        type: 'bar',
+        data: {
+          labels: monthKeys.map(monthLabel),
+          datasets: [{ label: 'Movimientos', data: monthKeys.map(k => byMonth[k]), borderWidth: 1 }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+
+      const byType = {};
+      rows.forEach(r => { byType[r.movimiento || 'Sin dato'] = (byType[r.movimiento || 'Sin dato'] || 0) + 1; });
+      const typeKeys = Object.keys(byType).sort();
+      makeChart('chartTipos', {
+        type: 'doughnut',
+        data: { labels: typeKeys, datasets: [{ data: typeKeys.map(k => byType[k]) }] },
+        options: { plugins: { legend: { position: 'bottom' } } }
+      });
+
+      const byDep = {};
+      rows.forEach(r => { const k = r.dependencia || 'Sin dato'; byDep[k] = (byDep[k] || 0) + 1; });
+      const depKeys = Object.entries(byDep).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x => x[0]);
+      makeChart('chartDependencias', {
+        type: 'bar',
+        data: { labels: depKeys, datasets: [{ label: 'Movimientos', data: depKeys.map(k => byDep[k]) }] },
+        options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+      });
+
+      const byCargo = {};
+      rows.forEach(r => { const k = r.cargo || 'Sin dato'; byCargo[k] = (byCargo[k] || 0) + 1; });
+      const cargoKeys = Object.entries(byCargo).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x => x[0]);
+      makeChart('chartCargos', {
+        type: 'bar',
+        data: { labels: cargoKeys, datasets: [{ label: 'Casos', data: cargoKeys.map(k => byCargo[k]) }] },
+        options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+      });
+    }
+
+    function renderObs() {
+      const rows = state.filtered;
+      const conObs = rows.filter(r => norm(r.observaciones));
+      const zimbra = rows.filter(r => norm(r.observaciones).toLowerCase().includes('zimbra')).length;
+      const sinBoletin = rows.filter(r => !norm(r.boletin)).length;
+      const sinFecha = rows.filter(r => !r.fecha).length;
+      els.obsBox.innerHTML = `
+        <p><strong>${conObs.length}</strong> registros con observaciones.</p>
+        <p><strong>${zimbra}</strong> mencionan Zimbra.</p>
+        <p><strong>${sinBoletin}</strong> no tienen boletín oficial informado.</p>
+        <p><strong>${sinFecha}</strong> no tienen fecha interpretable para el tablero.</p>
+      `;
+    }
+
+    function renderTable() {
+      const rows = state.filtered;
+      if (!rows.length) {
+        els.tableBody.innerHTML = '<tr><td colspan="9" class="loading">No hay resultados con esos filtros.</td></tr>';
+        return;
+      }
+      els.tableBody.innerHTML = rows.slice(0, 500).map(r => `
+        <tr>
+          <td>${escapeHtml(r.apellido)}</td>
+          <td>${escapeHtml(r.nombre)}</td>
+          <td><span class="badge ${movementClass(r.movimiento)}">${escapeHtml(r.movimiento || 'Sin dato')}</span></td>
+          <td>${escapeHtml(fmtDate(r.fecha) || r.fechaRaw || '')}</td>
+          <td>${escapeHtml(r.decreto)}</td>
+          <td>${escapeHtml(r.cargo)}</td>
+          <td>${escapeHtml(r.dependencia)}</td>
+          <td>${escapeHtml(r.subdependencia)}</td>
+          <td>${escapeHtml(r.observaciones)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAll() {
+      renderKPIs();
+      renderCharts();
+      renderObs();
+      renderTable();
+      els.status.textContent = `${state.filtered.length.toLocaleString('es-AR')} registros visibles · última carga ${new Date().toLocaleString('es-AR')}`;
+    }
+
+    function processRow(row) {
+      const fechaRaw = norm(row['Fecha de publicación en el BO']);
+      const fecha = parseDate(fechaRaw);
+      return {
+        apellido: norm(row['Apellido']),
+        nombre: norm(row['Nombre']),
+        decreto: norm(row['Decreto']),
+        movimiento: norm(row['Modificación en Nómina']),
+        fechaRaw,
+        fecha,
+        anio: fecha ? fecha.getFullYear() : '',
+        boletin: norm(row['Boletín oficial donde se publicó']),
+        diaCarga: norm(row['Día de carga']),
+        cargo: norm(row['Cargo']),
+        dependencia: norm(row['Dependencia']),
+        subdependencia: norm(row['Subdependencia']),
+        observaciones: norm(row['Observaciones'])
+      };
+    }
+
+    async function loadData() {
+      els.status.textContent = 'Cargando Google Sheets…';
+      Papa.parse(CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          state.raw = results.data.map(processRow).filter(r => Object.values(r).some(Boolean));
+          buildOptions();
+          applyFilters();
+        },
+        error: () => {
+          els.status.textContent = 'No se pudieron cargar los datos. Revisá que la hoja siga publicada como CSV.';
+        }
+      });
+    }
+
+    [els.search, els.movimiento, els.anio, els.dependencia, els.subdependencia].forEach(el => {
+      el.addEventListener('input', () => {
+        if (el === els.dependencia) updateSubdependencias();
+        applyFilters();
+      });
+      el.addEventListener('change', () => {
+        if (el === els.dependencia) updateSubdependencias();
+        applyFilters();
+      });
+    });
+
+    els.clearFilters.addEventListener('click', () => {
+      els.search.value = '';
+      els.movimiento.value = '';
+      els.anio.value = '';
+      els.dependencia.value = '';
+      updateSubdependencias();
+      els.subdependencia.value = '';
+      applyFilters();
+    });
+
+    loadData();
+    setInterval(loadData, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
