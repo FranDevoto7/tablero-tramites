@@ -20,6 +20,10 @@
       --danger: #b03a2e;
       --warning: #b98318;
       --info: #1c8a72;
+      --sky: #4ca6ff;
+      --skyText: #2d74c4;
+      --amberBg: rgba(255,193,7,.18);
+      --amberText: #8a6500;
       --shadow: 0 1px 2px rgba(0,0,0,.03);
     }
 
@@ -118,6 +122,8 @@
       padding: 18px;
       box-shadow: var(--shadow);
     }
+
+    .card + .card { margin-top: 12px; }
 
     .filters {
       display: grid;
@@ -291,16 +297,55 @@
     .baja { background: rgba(176,58,46,.12); color: var(--danger); }
     .traslado { background: rgba(123,191,58,.18); color: #567f22; }
 
-    .status-pendiente { background: rgba(185,131,24,.14); color: var(--warning); }
-    .status-progress { background: rgba(28,138,114,.14); color: var(--info); }
-    .status-completada { background: rgba(47,163,107,.14); color: var(--accent2); }
-    .status-bloqueada { background: rgba(176,58,46,.12); color: var(--danger); }
-    .status-default { background: rgba(31,143,95,.12); color: var(--accent); }
+    .status-iniciado {
+      background: rgba(76,166,255,.16);
+      color: var(--skyText);
+    }
 
-    .priority-alta { background: rgba(176,58,46,.12); color: var(--danger); }
-    .priority-media { background: rgba(185,131,24,.14); color: var(--warning); }
-    .priority-baja { background: rgba(47,163,107,.14); color: var(--accent2); }
-    .priority-default { background: rgba(15,106,67,.12); color: var(--accent4); }
+    .status-pendiente {
+      background: rgba(76,166,255,.16);
+      color: var(--skyText);
+    }
+
+    .status-progress {
+      background: var(--amberBg);
+      color: var(--amberText);
+    }
+
+    .status-completada {
+      background: rgba(47,163,107,.14);
+      color: var(--accent2);
+    }
+
+    .status-bloqueada {
+      background: rgba(176,58,46,.12);
+      color: var(--danger);
+    }
+
+    .status-default {
+      background: rgba(31,143,95,.12);
+      color: var(--accent);
+    }
+
+    .priority-alta {
+      background: rgba(176,58,46,.12);
+      color: var(--danger);
+    }
+
+    .priority-media {
+      background: rgba(185,131,24,.14);
+      color: var(--warning);
+    }
+
+    .priority-baja {
+      background: rgba(47,163,107,.14);
+      color: var(--accent2);
+    }
+
+    .priority-default {
+      background: rgba(15,106,67,.12);
+      color: var(--accent4);
+    }
 
     .small {
       color: var(--muted);
@@ -390,6 +435,7 @@
       <nav class="nav-pills">
         <a href="#nomina">Nómina</a>
         <a href="#tareas">Tareas</a>
+        <a href="#usuarios">Usuarios</a>
         <a href="#hoja">Hoja publicada</a>
         <a href="#looker">Looker Studio</a>
       </nav>
@@ -515,7 +561,7 @@
       <div class="panel-title">
         <div>
           <h2>Gestión de tareas del equipo</h2>
-          <p>Nuevo módulo conectado a la hoja compartida. Detecta columnas por nombre aproximado para adaptarse a distintos diseños.</p>
+          <p>Módulo conectado a la hoja compartida. Detecta columnas por nombre aproximado y contempla que la fecha de vencimiento figure como “Plazo”.</p>
         </div>
       </div>
 
@@ -552,7 +598,7 @@
             <select id="taskPriorityFilter"><option value="">Todas</option></select>
           </div>
           <div>
-            <label for="taskDueFilter">Vencimiento</label>
+            <label for="taskDueFilter">Plazo</label>
             <select id="taskDueFilter">
               <option value="">Todos</option>
               <option value="overdue">Vencidas</option>
@@ -619,7 +665,7 @@
           <canvas id="taskChartPriority" height="180"></canvas>
         </div>
         <div class="card">
-          <h3 class="section-title">Vencimientos</h3>
+          <h3 class="section-title">Plazos</h3>
           <canvas id="taskChartDue" height="180"></canvas>
           <div class="legend-inline">
             <span>Vencidas</span>
@@ -661,8 +707,8 @@
                 <th>Proyecto / área</th>
                 <th>Prioridad</th>
                 <th>Inicio</th>
-                <th>Vencimiento</th>
-                <th>Días al vencimiento</th>
+                <th>Plazo</th>
+                <th>Días al plazo</th>
                 <th>Notas</th>
               </tr>
             </thead>
@@ -670,6 +716,37 @@
               <tr><td colspan="9" class="loading">Cargando…</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="usuarios" class="section">
+      <div class="panel-title">
+        <div>
+          <h2>Usuarios</h2>
+          <p>Módulo adicional a partir de la hoja específica de usuarios.</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="section-title">Último corte de usuarios</h3>
+          <canvas id="usersChartTotal" height="120"></canvas>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Evolución de usuarios</h3>
+          <canvas id="usersChartTrend" height="120"></canvas>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="section-title">Comparativa entre métricas</h3>
+          <canvas id="usersChartMetrics" height="120"></canvas>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Resumen de usuarios</h3>
+          <div id="usersSummary" class="small"></div>
         </div>
       </div>
     </section>
@@ -718,6 +795,7 @@
   <script>
     const NOMINA_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vREPK0VRY6r0JmRQ_RwU4Pe1J2TlydDwrZQgZh5AYkDXJrJp_Np5x4wd9GfTn4KDSM2EQHVMpLkZLEY/pub?gid=408158073&single=true&output=csv';
     const TASKS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vREPK0VRY6r0JmRQ_RwU4Pe1J2TlydDwrZQgZh5AYkDXJrJp_Np5x4wd9GfTn4KDSM2EQHVMpLkZLEY/pub?gid=0&single=true&output=csv';
+    const USERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vREPK0VRY6r0JmRQ_RwU4Pe1J2TlydDwrZQgZh5AYkDXJrJp_Np5x4wd9GfTn4KDSM2EQHVMpLkZLEY/pub?gid=603349803&single=true&output=csv';
 
     const state = { raw: [], filtered: [] };
     const taskState = {
@@ -725,6 +803,12 @@
       filtered: [],
       columns: {},
       meta: { columnNames: [] }
+    };
+    const usersState = {
+      raw: [],
+      dateColumn: '',
+      metricColumns: [],
+      primaryMetric: ''
     };
     const charts = {};
 
@@ -762,7 +846,9 @@
       taskKpiDone: document.getElementById('taskKpiDone'),
       taskKpiOverdue: document.getElementById('taskKpiOverdue'),
       taskKpiOwners: document.getElementById('taskKpiOwners'),
-      taskKpiHigh: document.getElementById('taskKpiHigh')
+      taskKpiHigh: document.getElementById('taskKpiHigh'),
+
+      usersSummary: document.getElementById('usersSummary')
     };
 
     function norm(v) {
@@ -779,11 +865,11 @@
 
     function escapeHtml(s) {
       return String(s || '').replace(/[&<>'"]/g, c => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        "'": '&#39;',
-        '"': '&quot;'
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        "'":'&#39;',
+        '"':'&quot;'
       }[c]));
     }
 
@@ -814,6 +900,20 @@
       if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
       return new Date(year, month - 1, day);
+    }
+
+    function parseNumber(value) {
+      const raw = norm(value);
+      if (!raw) return null;
+
+      const normalized = raw
+        .replace(/\./g, '')
+        .replace(/,/g, '.')
+        .replace(/[^\d.-]/g, '');
+
+      if (!normalized) return null;
+      const n = Number(normalized);
+      return Number.isFinite(n) ? n : null;
     }
 
     function fmtDate(d) {
@@ -853,10 +953,23 @@
 
     function statusClass(v) {
       const s = normKey(v);
-      if (['open','pendiente','pendientes'].includes(s)) return 'status-pendiente';
-      if (['enprogreso','progress','inprogress','haciendo'].includes(s)) return 'status-progress';
-      if (['done','completada','completado','completo','cerrada','cerrado','resuelta','resuelto','finalizada','finalizado'].includes(s)) return 'status-completada';
-      if (['blocked','bloqueada','bloqueado','cancelada','cancelado'].includes(s)) return 'status-bloqueada';
+
+      if (['iniciado','inicio','started','start','pendiente','pendientes','open'].includes(s)) {
+        return 'status-iniciado';
+      }
+
+      if (['avanzado','enprogreso','progress','inprogress','haciendo'].includes(s)) {
+        return 'status-progress';
+      }
+
+      if (['frenado','bloqueado','bloqueada','blocked','cancelada','cancelado'].includes(s)) {
+        return 'status-bloqueada';
+      }
+
+      if (['done','completada','completado','completo','cerrada','cerrado','resuelta','resuelto','finalizada','finalizado'].includes(s)) {
+        return 'status-completada';
+      }
+
       return 'status-default';
     }
 
@@ -949,6 +1062,7 @@
         const k = monthKey(r.fecha);
         byMonth[k] = (byMonth[k] || 0) + 1;
       });
+
       const monthKeys = Object.keys(byMonth).sort();
       makeChart('chartMeses', {
         type: 'bar',
@@ -956,7 +1070,11 @@
           labels: monthKeys.map(monthLabel),
           datasets: [{ label: 'Movimientos', data: monthKeys.map(k => byMonth[k]), borderWidth: 1 }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
       });
 
       const byType = {};
@@ -969,21 +1087,37 @@
       });
 
       const byDep = {};
-      rows.forEach(r => { const k = r.dependencia || 'Sin dato'; byDep[k] = (byDep[k] || 0) + 1; });
+      rows.forEach(r => {
+        const k = r.dependencia || 'Sin dato';
+        byDep[k] = (byDep[k] || 0) + 1;
+      });
       const depKeys = topEntries(byDep, 8).map(x => x[0]);
       makeChart('chartDependencias', {
         type: 'bar',
         data: { labels: depKeys, datasets: [{ label: 'Movimientos', data: depKeys.map(k => byDep[k]) }] },
-        options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
       });
 
       const byCargo = {};
-      rows.forEach(r => { const k = r.cargo || 'Sin dato'; byCargo[k] = (byCargo[k] || 0) + 1; });
+      rows.forEach(r => {
+        const k = r.cargo || 'Sin dato';
+        byCargo[k] = (byCargo[k] || 0) + 1;
+      });
       const cargoKeys = topEntries(byCargo, 8).map(x => x[0]);
       makeChart('chartCargos', {
         type: 'bar',
         data: { labels: cargoKeys, datasets: [{ label: 'Casos', data: cargoKeys.map(k => byCargo[k]) }] },
-        options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
       });
     }
 
@@ -1007,6 +1141,7 @@
         els.tableBody.innerHTML = '<tr><td colspan="9" class="loading">No hay resultados con esos filtros.</td></tr>';
         return;
       }
+
       els.tableBody.innerHTML = rows.slice(0, 500).map(r => `
         <tr>
           <td>${escapeHtml(r.apellido)}</td>
@@ -1083,7 +1218,7 @@
         owner: pick('responsable', 'owner', 'asignado', 'assigned', 'persona', 'referente'),
         project: pick('proyecto', 'project', 'area', 'equipo', 'frente', 'tema', 'categoria'),
         priority: pick('prioridad', 'priority', 'urgencia', 'impacto'),
-        dueDate: pick('vencimiento', 'due', 'deadline', 'fechalimite', 'fechaentrega', 'fechacierre'),
+        dueDate: pick('plazo', 'vencimiento', 'due', 'deadline', 'fechalimite', 'fechaentrega', 'fechacierre'),
         startDate: pick('inicio', 'start', 'fechadeinicio', 'creacion', 'created', 'alta'),
         notes: pick('observacion', 'nota', 'detalle', 'descripcion', 'comentario', 'comments', 'notes'),
         link: pick('link', 'enlace', 'url')
@@ -1137,8 +1272,10 @@
     function dueBucket(row) {
       if (!row.dueDate) return 'nodate';
       if (isDoneStatus(row.status)) return 'done';
+
       const today = new Date();
       const diff = daysDiff(today, row.dueDate);
+
       if (diff < 0) return 'overdue';
       if (diff === 0) return 'today';
       if (diff <= 7) return 'week';
@@ -1186,7 +1323,9 @@
       const rows = taskState.filtered;
 
       const byStatus = {};
-      rows.forEach(r => { byStatus[r.status || 'Sin dato'] = (byStatus[r.status || 'Sin dato'] || 0) + 1; });
+      rows.forEach(r => {
+        byStatus[r.status || 'Sin dato'] = (byStatus[r.status || 'Sin dato'] || 0) + 1;
+      });
       const statusLabels = Object.keys(byStatus).sort();
       makeChart('taskChartStatus', {
         type: 'doughnut',
@@ -1195,25 +1334,41 @@
       });
 
       const byOwner = {};
-      rows.forEach(r => { byOwner[r.owner || 'Sin asignar'] = (byOwner[r.owner || 'Sin asignar'] || 0) + 1; });
+      rows.forEach(r => {
+        byOwner[r.owner || 'Sin asignar'] = (byOwner[r.owner || 'Sin asignar'] || 0) + 1;
+      });
       const ownerLabels = topEntries(byOwner, 8).map(x => x[0]);
       makeChart('taskChartOwners', {
         type: 'bar',
         data: { labels: ownerLabels, datasets: [{ label: 'Tareas', data: ownerLabels.map(k => byOwner[k]) }] },
-        options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
       });
 
       const byProject = {};
-      rows.forEach(r => { byProject[r.project || 'Sin proyecto'] = (byProject[r.project || 'Sin proyecto'] || 0) + 1; });
+      rows.forEach(r => {
+        byProject[r.project || 'Sin proyecto'] = (byProject[r.project || 'Sin proyecto'] || 0) + 1;
+      });
       const projectLabels = topEntries(byProject, 8).map(x => x[0]);
       makeChart('taskChartProjects', {
         type: 'bar',
         data: { labels: projectLabels, datasets: [{ label: 'Tareas', data: projectLabels.map(k => byProject[k]) }] },
-        options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
       });
 
       const byPriority = {};
-      rows.forEach(r => { byPriority[r.priority || 'Sin dato'] = (byPriority[r.priority || 'Sin dato'] || 0) + 1; });
+      rows.forEach(r => {
+        byPriority[r.priority || 'Sin dato'] = (byPriority[r.priority || 'Sin dato'] || 0) + 1;
+      });
       const priorityLabels = Object.keys(byPriority).sort();
       makeChart('taskChartPriority', {
         type: 'pie',
@@ -1231,7 +1386,11 @@
       makeChart('taskChartDue', {
         type: 'bar',
         data: { labels: Object.keys(dueCounts), datasets: [{ label: 'Tareas', data: Object.values(dueCounts) }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
       });
 
       const byWeek = {};
@@ -1244,7 +1403,11 @@
       makeChart('taskChartTimeline', {
         type: 'line',
         data: { labels: weekLabels, datasets: [{ label: 'Tareas', data: weekLabels.map(k => byWeek[k]), tension: .25 }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
       });
     }
 
@@ -1259,7 +1422,9 @@
       const overduePct = Math.round((overdue / total) * 100);
 
       const ownerLoad = {};
-      rows.forEach(r => { ownerLoad[r.owner || 'Sin asignar'] = (ownerLoad[r.owner || 'Sin asignar'] || 0) + 1; });
+      rows.forEach(r => {
+        ownerLoad[r.owner || 'Sin asignar'] = (ownerLoad[r.owner || 'Sin asignar'] || 0) + 1;
+      });
       const topOwner = topEntries(ownerLoad, 1)[0];
 
       els.taskInsights.innerHTML = `
@@ -1313,7 +1478,7 @@
         <p><strong>${noStatus}</strong> filas sin estado.</p>
         <p><strong>${noOwner}</strong> filas sin responsable.</p>
         <p><strong>${noPriority}</strong> filas sin prioridad.</p>
-        <p><strong>${noDue}</strong> filas sin fecha de vencimiento interpretable.</p>
+        <p><strong>${noDue}</strong> filas sin fecha de plazo interpretable.</p>
       `;
     }
 
@@ -1380,6 +1545,176 @@
       });
     }
 
+    function detectUsersColumns(headers) {
+      const items = headers.map(h => ({ original: h, norm: normKey(h) }));
+
+      const dateColumn =
+        (items.find(x => x.norm.includes('fecha')) || {}).original || '';
+
+      const metricColumns = items
+        .filter(x =>
+          !x.norm.includes('fecha') &&
+          (
+            x.norm.includes('usuario') ||
+            x.norm.includes('usuarios') ||
+            x.norm.includes('activo') ||
+            x.norm.includes('activos') ||
+            x.norm.includes('nuevo') ||
+            x.norm.includes('nuevos') ||
+            x.norm.includes('total') ||
+            x.norm.includes('cantidad')
+          )
+        )
+        .map(x => x.original);
+
+      const primaryMetric =
+        metricColumns.find(c => {
+          const n = normKey(c);
+          return n.includes('usuarios') || n === 'usuarios' || n.includes('total');
+        }) || metricColumns[0] || '';
+
+      return { dateColumn, metricColumns, primaryMetric };
+    }
+
+    function processUsersRow(row) {
+      const date = parseDate(row[usersState.dateColumn]);
+      const metrics = {};
+
+      usersState.metricColumns.forEach(col => {
+        metrics[col] = parseNumber(row[col]);
+      });
+
+      return {
+        date,
+        rawDate: norm(row[usersState.dateColumn]),
+        metrics,
+        raw: row
+      };
+    }
+
+    function renderUsersModule() {
+      if (!usersState.raw.length || !usersState.primaryMetric) {
+        els.usersSummary.innerHTML = '<p>No se pudieron detectar columnas de usuarios en la hoja.</p>';
+        return;
+      }
+
+      const rows = [...usersState.raw]
+        .filter(r => r.date && !isNaN(r.date))
+        .sort((a, b) => a.date - b.date);
+
+      if (!rows.length) {
+        els.usersSummary.innerHTML = '<p>No hay fechas interpretables en la hoja de usuarios.</p>';
+        return;
+      }
+
+      const latest = rows[rows.length - 1];
+      const previous = rows.length > 1 ? rows[rows.length - 2] : null;
+
+      const latestMetricValues = usersState.metricColumns
+        .map(col => ({
+          label: col,
+          value: latest.metrics[col]
+        }))
+        .filter(x => x.value !== null);
+
+      makeChart('usersChartTotal', {
+        type: 'bar',
+        data: {
+          labels: latestMetricValues.map(x => x.label),
+          datasets: [{
+            label: 'Último valor',
+            data: latestMetricValues.map(x => x.value),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      const trendRows = rows.filter(r => r.metrics[usersState.primaryMetric] !== null);
+      makeChart('usersChartTrend', {
+        type: 'line',
+        data: {
+          labels: trendRows.map(r => fmtDate(r.date) || r.rawDate),
+          datasets: [{
+            label: usersState.primaryMetric,
+            data: trendRows.map(r => r.metrics[usersState.primaryMetric]),
+            tension: .25
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      const datasetMetrics = usersState.metricColumns
+        .filter(col => rows.some(r => r.metrics[col] !== null))
+        .slice(0, 4);
+
+      makeChart('usersChartMetrics', {
+        type: 'line',
+        data: {
+          labels: rows.map(r => fmtDate(r.date) || r.rawDate),
+          datasets: datasetMetrics.map(col => ({
+            label: col,
+            data: rows.map(r => r.metrics[col]),
+            tension: .25
+          }))
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      const current = latest.metrics[usersState.primaryMetric];
+      const prev = previous ? previous.metrics[usersState.primaryMetric] : null;
+      const delta = (current !== null && prev !== null) ? current - prev : null;
+
+      const extra = latestMetricValues
+        .filter(x => x.label !== usersState.primaryMetric)
+        .map(x => `<p><strong>${escapeHtml(x.label)}:</strong> ${String(x.value)}</p>`)
+        .join('');
+
+      els.usersSummary.innerHTML = `
+        <p><strong>Métrica principal:</strong> ${escapeHtml(usersState.primaryMetric)}</p>
+        <p><strong>Último valor:</strong> ${current !== null ? String(current) : 'Sin dato'}</p>
+        <p><strong>Fecha más reciente:</strong> ${escapeHtml(fmtDate(latest.date) || latest.rawDate || 'Sin fecha')}</p>
+        <p><strong>Variación vs. registro anterior:</strong> ${delta === null ? 'Sin comparación' : String(delta)}</p>
+        ${extra}
+      `;
+    }
+
+    function loadUsersData() {
+      Papa.parse(USERS_CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const headers = results.meta.fields || [];
+          const detected = detectUsersColumns(headers);
+
+          usersState.dateColumn = detected.dateColumn;
+          usersState.metricColumns = detected.metricColumns;
+          usersState.primaryMetric = detected.primaryMetric;
+          usersState.raw = results.data
+            .map(processUsersRow)
+            .filter(r => Object.values(r.raw).some(v => norm(v)));
+
+          renderUsersModule();
+        },
+        error: () => {
+          els.usersSummary.innerHTML = '<p>No se pudo cargar la hoja de usuarios.</p>';
+        }
+      });
+    }
+
     [els.search, els.movimiento, els.anio, els.dependencia, els.subdependencia].forEach(el => {
       el.addEventListener('input', () => {
         if (el === els.dependencia) updateSubdependencias();
@@ -1423,8 +1758,11 @@
 
     loadNominaData();
     loadTaskData();
+    loadUsersData();
+
     setInterval(loadNominaData, 5 * 60 * 1000);
     setInterval(loadTaskData, 5 * 60 * 1000);
+    setInterval(loadUsersData, 5 * 60 * 1000);
   </script>
 </body>
 </html>
