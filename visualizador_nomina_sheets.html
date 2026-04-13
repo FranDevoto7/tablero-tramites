@@ -661,9 +661,6 @@
       </div>
 
       <div class="grid-3">
-        <div class="card">
-          <h3 class="section-title">Tareas por proyecto / área</h3>
-          <canvas id="taskChartProjects" height="180"></canvas>
         </div>
         <div class="card">
           <h3 class="section-title">Prioridades</h3>
@@ -1276,7 +1273,7 @@
         title: pick('tarea', 'task', 'actividad', 'asunto', 'titulo', 'title', 'objetivo'),
         status: pick('estado', 'status', 'situacion'),
         owner: pick('responsable', 'owner', 'asignado', 'assigned', 'persona', 'referente'),
-        project: pick('proyecto', 'project', 'area', 'equipo', 'frente', 'tema', 'categoria'),
+        project: pick('eje', 'proyecto', 'project', 'area', 'equipo', 'frente', 'tema', 'categoria'),
         priority: pick('prioridad', 'priority', 'urgencia', 'impacto'),
         dueDate: pick('plazo', 'vencimiento', 'due', 'deadline', 'fechalimite', 'fechaentrega', 'fechacierre'),
         startDate: pick('inicio', 'start', 'fechadeinicio', 'creacion', 'created', 'alta'),
@@ -1376,25 +1373,6 @@
       els.taskKpiOwners.textContent = owners.toLocaleString('es-AR');
       els.taskKpiHigh.textContent = high.toLocaleString('es-AR');
     }
-
-    function renderTaskCharts() {
-      const rows = taskState.filtered;
-
-      const byStatus = {};
-      rows.forEach(r => { byStatus[r.status || 'Sin dato'] = (byStatus[r.status || 'Sin dato'] || 0) + 1; });
-      const statusLabels = Object.keys(byStatus).sort();
-     makeChart('taskChartStatus', {
-  type: 'bar',
-  data: {
-    labels: statusLabels,
-    datasets: [{ label: 'Tareas', data: statusLabels.map(k => byStatus[k]), borderWidth: 1 }]
-  },
-  options: {
-    responsive: true,
-    indexAxis: 'y',
-    plugins: { legend: { display: false } },
-    scales: { x: { beginAtZero: true } }
-  }
 });
 
       const byOwner = {};
@@ -1466,6 +1444,11 @@
       const done = rows.filter(r => isDoneStatus(r.status)).length;
       const noOwner = rows.filter(r => !r.owner).length;
       const noProject = rows.filter(r => !r.project).length;
+      const byAxis = {};
+      rows.forEach(r => {const key = r.project || 'Sin eje';
+  byAxis[key] = (byAxis[key] || 0) + 1;
+});
+const topAxis = topEntries(byAxis, 1)[0];
       const noDue = rows.filter(r => !r.dueDate && !isDoneStatus(r.status)).length;
       const donePct = Math.round((done / total) * 100);
       const overduePct = Math.round((overdue / total) * 100);
@@ -1478,8 +1461,8 @@
         <div class="insight-item"><strong>${donePct}%</strong> del conjunto visible aparece como resuelto.</div>
         <div class="insight-item"><strong>${overduePct}%</strong> del conjunto visible está vencido y abierto.</div>
         <div class="insight-item"><strong>${noOwner}</strong> tareas no muestran responsable asignado.</div>
-        <div class="insight-item"><strong>${noProject}</strong> tareas no muestran proyecto o área.</div>
-        <div class="insight-item"><strong>${noDue}</strong> tareas abiertas no tienen plazo interpretable.</div>
+        <div class="insight-item"><strong>${noProject}</strong> tareas no muestran eje.</div>
+        <div class="insight-item"><strong>${topAxis ? escapeHtml(topAxis[0]) : 'Sin dato'}</strong> es el eje con más carga visible, con ${topAxis ? topAxis[1] : 0} tareas.</div>        <div class="insight-item"><strong>${noDue}</strong> tareas abiertas no tienen plazo interpretable.</div>
         <div class="insight-item"><strong>${topOwner ? escapeHtml(topOwner[0]) : 'Sin dato'}</strong> concentra la mayor carga visible con ${topOwner ? topOwner[1] : 0} tareas.</div>
       `;
     }
