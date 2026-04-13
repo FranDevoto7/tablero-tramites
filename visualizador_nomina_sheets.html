@@ -430,7 +430,7 @@
     <div class="topbar">
       <div>
         <h1>Tableros de gestión interna</h1>
-        <p>Movimientos de nómina + gestión de tareas del equipo, conectados a Google Sheets</p>
+        <p>Movimientos de nómina + gestión de tareas + evolución de usuarios, conectados a Google Sheets</p>
       </div>
       <nav class="nav-pills">
         <a href="#nomina">Nómina</a>
@@ -447,7 +447,7 @@
       <div class="panel-title">
         <div>
           <h2>Movimientos de nómina</h2>
-          <p>Conserva el tablero original y suma analítica para seguimiento institucional.</p>
+          <p>Tablero original de movimientos con filtros, KPIs y lectura rápida de calidad de datos.</p>
         </div>
       </div>
 
@@ -561,7 +561,7 @@
       <div class="panel-title">
         <div>
           <h2>Gestión de tareas del equipo</h2>
-          <p>Módulo conectado a la hoja compartida. Detecta columnas por nombre aproximado y contempla que la fecha de vencimiento figure como “Plazo”.</p>
+          <p>Lectura robusta de la hoja, contemplando que la fecha de vencimiento figure como “Plazo”.</p>
         </div>
       </div>
 
@@ -724,7 +724,7 @@
       <div class="panel-title">
         <div>
           <h2>Usuarios</h2>
-          <p>Módulo adicional a partir de la hoja específica de usuarios.</p>
+          <p>Módulo específico para la base de usuarios, con seguimiento de volumen, crecimiento y altas nuevas.</p>
         </div>
       </div>
 
@@ -741,11 +741,11 @@
 
       <div class="grid-2">
         <div class="card">
-          <h3 class="section-title">Comparativa entre métricas</h3>
+          <h3 class="section-title">Comparativa de métricas</h3>
           <canvas id="usersChartMetrics" height="120"></canvas>
         </div>
         <div class="card">
-          <h3 class="section-title">Resumen de usuarios</h3>
+          <h3 class="section-title">Observaciones de usuarios</h3>
           <div id="usersSummary" class="small"></div>
         </div>
       </div>
@@ -912,6 +912,7 @@
         .replace(/[^\d.-]/g, '');
 
       if (!normalized) return null;
+
       const n = Number(normalized);
       return Number.isFinite(n) ? n : null;
     }
@@ -1127,11 +1128,21 @@
       const zimbra = rows.filter(r => norm(r.observaciones).toLowerCase().includes('zimbra')).length;
       const sinBoletin = rows.filter(r => !norm(r.boletin)).length;
       const sinFecha = rows.filter(r => !r.fecha).length;
+
+      const depCounts = {};
+      rows.forEach(r => {
+        const dep = r.dependencia || 'Sin dependencia';
+        depCounts[dep] = (depCounts[dep] || 0) + 1;
+      });
+      const topDep = topEntries(depCounts, 1)[0];
+
       els.obsBox.innerHTML = `
-        <p><strong>${conObs.length}</strong> registros con observaciones.</p>
-        <p><strong>${zimbra}</strong> mencionan Zimbra.</p>
-        <p><strong>${sinBoletin}</strong> no tienen boletín oficial informado.</p>
-        <p><strong>${sinFecha}</strong> no tienen fecha interpretable para el tablero.</p>
+        <p><strong>${rows.length}</strong> movimientos en el filtro actual.</p>
+        <p><strong>${conObs.length}</strong> registros incluyen observaciones complementarias.</p>
+        <p><strong>${zimbra}</strong> observaciones mencionan Zimbra.</p>
+        <p><strong>${sinBoletin}</strong> registros no informan boletín oficial.</p>
+        <p><strong>${sinFecha}</strong> registros no tienen fecha interpretable.</p>
+        <p><strong>${topDep ? escapeHtml(topDep[0]) : 'Sin dato'}</strong> concentra la mayor cantidad visible con <strong>${topDep ? topDep[1] : 0}</strong> movimientos.</p>
       `;
     }
 
@@ -1272,10 +1283,8 @@
     function dueBucket(row) {
       if (!row.dueDate) return 'nodate';
       if (isDoneStatus(row.status)) return 'done';
-
       const today = new Date();
       const diff = daysDiff(today, row.dueDate);
-
       if (diff < 0) return 'overdue';
       if (diff === 0) return 'today';
       if (diff <= 7) return 'week';
@@ -1323,9 +1332,7 @@
       const rows = taskState.filtered;
 
       const byStatus = {};
-      rows.forEach(r => {
-        byStatus[r.status || 'Sin dato'] = (byStatus[r.status || 'Sin dato'] || 0) + 1;
-      });
+      rows.forEach(r => { byStatus[r.status || 'Sin dato'] = (byStatus[r.status || 'Sin dato'] || 0) + 1; });
       const statusLabels = Object.keys(byStatus).sort();
       makeChart('taskChartStatus', {
         type: 'doughnut',
@@ -1334,41 +1341,25 @@
       });
 
       const byOwner = {};
-      rows.forEach(r => {
-        byOwner[r.owner || 'Sin asignar'] = (byOwner[r.owner || 'Sin asignar'] || 0) + 1;
-      });
+      rows.forEach(r => { byOwner[r.owner || 'Sin asignar'] = (byOwner[r.owner || 'Sin asignar'] || 0) + 1; });
       const ownerLabels = topEntries(byOwner, 8).map(x => x[0]);
       makeChart('taskChartOwners', {
         type: 'bar',
         data: { labels: ownerLabels, datasets: [{ label: 'Tareas', data: ownerLabels.map(k => byOwner[k]) }] },
-        options: {
-          responsive: true,
-          indexAxis: 'y',
-          plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true } }
-        }
+        options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
       });
 
       const byProject = {};
-      rows.forEach(r => {
-        byProject[r.project || 'Sin proyecto'] = (byProject[r.project || 'Sin proyecto'] || 0) + 1;
-      });
+      rows.forEach(r => { byProject[r.project || 'Sin proyecto'] = (byProject[r.project || 'Sin proyecto'] || 0) + 1; });
       const projectLabels = topEntries(byProject, 8).map(x => x[0]);
       makeChart('taskChartProjects', {
         type: 'bar',
         data: { labels: projectLabels, datasets: [{ label: 'Tareas', data: projectLabels.map(k => byProject[k]) }] },
-        options: {
-          responsive: true,
-          indexAxis: 'y',
-          plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true } }
-        }
+        options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
       });
 
       const byPriority = {};
-      rows.forEach(r => {
-        byPriority[r.priority || 'Sin dato'] = (byPriority[r.priority || 'Sin dato'] || 0) + 1;
-      });
+      rows.forEach(r => { byPriority[r.priority || 'Sin dato'] = (byPriority[r.priority || 'Sin dato'] || 0) + 1; });
       const priorityLabels = Object.keys(byPriority).sort();
       makeChart('taskChartPriority', {
         type: 'pie',
@@ -1386,11 +1377,7 @@
       makeChart('taskChartDue', {
         type: 'bar',
         data: { labels: Object.keys(dueCounts), datasets: [{ label: 'Tareas', data: Object.values(dueCounts) }] },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
       });
 
       const byWeek = {};
@@ -1403,11 +1390,7 @@
       makeChart('taskChartTimeline', {
         type: 'line',
         data: { labels: weekLabels, datasets: [{ label: 'Tareas', data: weekLabels.map(k => byWeek[k]), tension: .25 }] },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
       });
     }
 
@@ -1418,13 +1401,12 @@
       const done = rows.filter(r => isDoneStatus(r.status)).length;
       const noOwner = rows.filter(r => !r.owner).length;
       const noProject = rows.filter(r => !r.project).length;
+      const noDue = rows.filter(r => !r.dueDate && !isDoneStatus(r.status)).length;
       const donePct = Math.round((done / total) * 100);
       const overduePct = Math.round((overdue / total) * 100);
 
       const ownerLoad = {};
-      rows.forEach(r => {
-        ownerLoad[r.owner || 'Sin asignar'] = (ownerLoad[r.owner || 'Sin asignar'] || 0) + 1;
-      });
+      rows.forEach(r => { ownerLoad[r.owner || 'Sin asignar'] = (ownerLoad[r.owner || 'Sin asignar'] || 0) + 1; });
       const topOwner = topEntries(ownerLoad, 1)[0];
 
       els.taskInsights.innerHTML = `
@@ -1432,6 +1414,7 @@
         <div class="insight-item"><strong>${overduePct}%</strong> del conjunto visible está vencido y abierto.</div>
         <div class="insight-item"><strong>${noOwner}</strong> tareas no muestran responsable asignado.</div>
         <div class="insight-item"><strong>${noProject}</strong> tareas no muestran proyecto o área.</div>
+        <div class="insight-item"><strong>${noDue}</strong> tareas abiertas no tienen plazo interpretable.</div>
         <div class="insight-item"><strong>${topOwner ? escapeHtml(topOwner[0]) : 'Sin dato'}</strong> concentra la mayor carga visible con ${topOwner ? topOwner[1] : 0} tareas.</div>
       `;
     }
@@ -1546,34 +1529,13 @@
     }
 
     function detectUsersColumns(headers) {
-      const items = headers.map(h => ({ original: h, norm: normKey(h) }));
+      const byNorm = Object.fromEntries(headers.map(h => [normKey(h), h]));
 
-      const dateColumn =
-        (items.find(x => x.norm.includes('fecha')) || {}).original || '';
-
-      const metricColumns = items
-        .filter(x =>
-          !x.norm.includes('fecha') &&
-          (
-            x.norm.includes('usuario') ||
-            x.norm.includes('usuarios') ||
-            x.norm.includes('activo') ||
-            x.norm.includes('activos') ||
-            x.norm.includes('nuevo') ||
-            x.norm.includes('nuevos') ||
-            x.norm.includes('total') ||
-            x.norm.includes('cantidad')
-          )
-        )
-        .map(x => x.original);
-
-      const primaryMetric =
-        metricColumns.find(c => {
-          const n = normKey(c);
-          return n.includes('usuarios') || n === 'usuarios' || n.includes('total');
-        }) || metricColumns[0] || '';
-
-      return { dateColumn, metricColumns, primaryMetric };
+      return {
+        dateColumn: byNorm['ultimaactualizacion'] || byNorm['fecha'] || '',
+        metricColumns: headers.filter(h => normKey(h) !== 'ultimaactualizacion'),
+        primaryMetric: byNorm['ndeusuarios'] || byNorm['usuarios'] || headers[0] || ''
+      };
     }
 
     function processUsersRow(row) {
@@ -1593,8 +1555,10 @@
     }
 
     function renderUsersModule() {
-      if (!usersState.raw.length || !usersState.primaryMetric) {
-        els.usersSummary.innerHTML = '<p>No se pudieron detectar columnas de usuarios en la hoja.</p>';
+      if (!usersState.raw.length || !usersState.primaryMetric || !els.usersSummary) {
+        if (els.usersSummary) {
+          els.usersSummary.innerHTML = '<p>No se pudieron detectar columnas de usuarios en la hoja.</p>';
+        }
         return;
       }
 
@@ -1611,10 +1575,7 @@
       const previous = rows.length > 1 ? rows[rows.length - 2] : null;
 
       const latestMetricValues = usersState.metricColumns
-        .map(col => ({
-          label: col,
-          value: latest.metrics[col]
-        }))
+        .map(col => ({ label: col, value: latest.metrics[col] }))
         .filter(x => x.value !== null);
 
       makeChart('usersChartTotal', {
@@ -1635,6 +1596,7 @@
       });
 
       const trendRows = rows.filter(r => r.metrics[usersState.primaryMetric] !== null);
+
       makeChart('usersChartTrend', {
         type: 'line',
         data: {
@@ -1677,21 +1639,43 @@
       const prev = previous ? previous.metrics[usersState.primaryMetric] : null;
       const delta = (current !== null && prev !== null) ? current - prev : null;
 
-      const extra = latestMetricValues
-        .filter(x => x.label !== usersState.primaryMetric)
-        .map(x => `<p><strong>${escapeHtml(x.label)}:</strong> ${String(x.value)}</p>`)
-        .join('');
+      const growthCol = usersState.metricColumns.find(col => normKey(col).includes('crecimientoporcentual'));
+      const newUsersCol = usersState.metricColumns.find(col => normKey(col).includes('nuevosusuarios'));
+      const growthVal = growthCol ? latest.metrics[growthCol] : null;
+      const newUsersVal = newUsersCol ? latest.metrics[newUsersCol] : null;
+
+      const avgNewUsers = (() => {
+        if (!newUsersCol) return null;
+        const vals = rows.map(r => r.metrics[newUsersCol]).filter(v => v !== null);
+        if (!vals.length) return null;
+        return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+      })();
+
+      const bestGrowth = (() => {
+        if (!growthCol) return null;
+        const ranked = rows
+          .filter(r => r.metrics[growthCol] !== null)
+          .sort((a,b) => b.metrics[growthCol] - a.metrics[growthCol])[0];
+        return ranked || null;
+      })();
 
       els.usersSummary.innerHTML = `
-        <p><strong>Métrica principal:</strong> ${escapeHtml(usersState.primaryMetric)}</p>
-        <p><strong>Último valor:</strong> ${current !== null ? String(current) : 'Sin dato'}</p>
+        <p><strong>Último total de usuarios:</strong> ${current !== null ? String(current) : 'Sin dato'}</p>
         <p><strong>Fecha más reciente:</strong> ${escapeHtml(fmtDate(latest.date) || latest.rawDate || 'Sin fecha')}</p>
-        <p><strong>Variación vs. registro anterior:</strong> ${delta === null ? 'Sin comparación' : String(delta)}</p>
-        ${extra}
+        <p><strong>Variación absoluta vs. registro anterior:</strong> ${delta === null ? 'Sin comparación' : String(delta)}</p>
+        <p><strong>Crecimiento porcentual del último corte:</strong> ${growthVal === null ? 'Sin dato' : String(growthVal) + '%'}</p>
+        <p><strong>Nuevos usuarios del último corte:</strong> ${newUsersVal === null ? 'Sin dato' : String(newUsersVal)}</p>
+        <p><strong>Promedio de nuevos usuarios por registro:</strong> ${avgNewUsers === null ? 'Sin dato' : String(avgNewUsers)}</p>
+        <p><strong>Mayor crecimiento registrado:</strong> ${bestGrowth ? String(bestGrowth.metrics[growthCol]) + '% el ' + escapeHtml(fmtDate(bestGrowth.date) || bestGrowth.rawDate) : 'Sin dato'}</p>
+        <p><strong>Lectura rápida:</strong> la serie muestra <strong>${rows.length}</strong> registros históricos, por lo que este módulo ya no depende de un único corte sino de una evolución acumulada.</p>
       `;
     }
 
     function loadUsersData() {
+      if (els.usersSummary) {
+        els.usersSummary.innerHTML = '<p>Cargando usuarios…</p>';
+      }
+
       Papa.parse(USERS_CSV_URL, {
         download: true,
         header: true,
@@ -1710,7 +1694,9 @@
           renderUsersModule();
         },
         error: () => {
-          els.usersSummary.innerHTML = '<p>No se pudo cargar la hoja de usuarios.</p>';
+          if (els.usersSummary) {
+            els.usersSummary.innerHTML = '<p>No se pudo cargar la hoja de usuarios.</p>';
+          }
         }
       });
     }
