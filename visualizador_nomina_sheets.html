@@ -201,6 +201,10 @@
       grid-template-columns: repeat(6, minmax(0, 1fr));
     }
 
+    .kpis.users {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .kpi-title {
       font-size: 12px;
       color: var(--muted);
@@ -410,6 +414,7 @@
     @media (max-width: 1200px) {
       .filters.task-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .kpis.tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .kpis.users { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid-4 { grid-template-columns: 1fr 1fr; }
     }
 
@@ -420,7 +425,7 @@
     }
 
     @media (max-width: 560px) {
-      .filters, .filters.task-filters, .kpis, .kpis.tasks { grid-template-columns: 1fr; }
+      .filters, .filters.task-filters, .kpis, .kpis.tasks, .kpis.users { grid-template-columns: 1fr; }
       iframe { height: 560px; }
     }
   </style>
@@ -724,25 +729,48 @@
       <div class="panel-title">
         <div>
           <h2>Usuarios</h2>
-          <p>Módulo específico para la base de usuarios, con seguimiento de volumen, crecimiento y altas nuevas.</p>
+          <p>Seguimiento de evolución, crecimiento relativo promedio y altas promedio por registro.</p>
+        </div>
+      </div>
+
+      <div class="kpis users">
+        <div class="card">
+          <div class="kpi-title">Último total</div>
+          <div class="kpi-value" id="usersKpiTotal">0</div>
+          <div class="kpi-sub">Usuarios del corte más reciente</div>
+        </div>
+        <div class="card">
+          <div class="kpi-title">Crecimiento promedio</div>
+          <div class="kpi-value" id="usersKpiGrowth">0%</div>
+          <div class="kpi-sub">Media entre registros válidos</div>
+        </div>
+        <div class="card">
+          <div class="kpi-title">Nuevos usuarios promedio</div>
+          <div class="kpi-value" id="usersKpiNewAvg">0</div>
+          <div class="kpi-sub">Media de altas por registro</div>
+        </div>
+        <div class="card">
+          <div class="kpi-title">Registros</div>
+          <div class="kpi-value" id="usersKpiRows">0</div>
+          <div class="kpi-sub">Cortes históricos leídos</div>
         </div>
       </div>
 
       <div class="grid-2">
-        <div class="card">
-          <h3 class="section-title">Último corte de usuarios</h3>
-          <canvas id="usersChartTotal" height="120"></canvas>
-        </div>
         <div class="card">
           <h3 class="section-title">Evolución de usuarios</h3>
           <canvas id="usersChartTrend" height="120"></canvas>
         </div>
+        <div class="card">
+          <h3 class="section-title">Nuevos usuarios por registro</h3>
+          <canvas id="usersChartNewUsers" height="120"></canvas>
+        </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <h3 class="section-title">Comparativa de métricas</h3>
-          <canvas id="usersChartMetrics" height="120"></canvas>
+          <h3 class="section-title">Crecimiento porcentual por registro</h3>
+          <canvas id="usersChartGrowth" height="120"></canvas>
         </div>
         <div class="card">
           <h3 class="section-title">Observaciones de usuarios</h3>
@@ -807,8 +835,9 @@
     const usersState = {
       raw: [],
       dateColumn: '',
-      metricColumns: [],
-      primaryMetric: ''
+      usersColumn: '',
+      growthColumn: '',
+      newUsersColumn: ''
     };
     const charts = {};
 
@@ -848,7 +877,11 @@
       taskKpiOwners: document.getElementById('taskKpiOwners'),
       taskKpiHigh: document.getElementById('taskKpiHigh'),
 
-      usersSummary: document.getElementById('usersSummary')
+      usersSummary: document.getElementById('usersSummary'),
+      usersKpiTotal: document.getElementById('usersKpiTotal'),
+      usersKpiGrowth: document.getElementById('usersKpiGrowth'),
+      usersKpiNewAvg: document.getElementById('usersKpiNewAvg'),
+      usersKpiRows: document.getElementById('usersKpiRows')
     };
 
     function norm(v) {
@@ -1011,6 +1044,13 @@
       return Math.round((end - start) / 86400000);
     }
 
+    function avg(values) {
+      const valid = values.filter(v => v !== null && !Number.isNaN(v));
+      if (!valid.length) return null;
+      return valid.reduce((a, b) => a + b, 0) / valid.length;
+    }
+
+    // ----------------------- NOMINA -----------------------
     function buildOptions() {
       fillSelect(els.movimiento, uniqueSorted(state.raw.map(r => r.movimiento)));
       fillSelect(els.anio, [...new Set(state.raw.map(r => r.anio).filter(Boolean))].sort((a,b)=>b-a));
@@ -1213,6 +1253,7 @@
       });
     }
 
+    // ----------------------- TAREAS -----------------------
     function detectColumns(headers) {
       const keys = headers.map(h => ({ original: h, norm: normKey(h) }));
       const pick = (...patterns) => {
@@ -1528,63 +1569,84 @@
       });
     }
 
+    // ----------------------- USUARIOS -----------------------
     function detectUsersColumns(headers) {
       const byNorm = Object.fromEntries(headers.map(h => [normKey(h), h]));
-
       return {
         dateColumn: byNorm['ultimaactualizacion'] || byNorm['fecha'] || '',
-        metricColumns: headers.filter(h => normKey(h) !== 'ultimaactualizacion'),
-        primaryMetric: byNorm['ndeusuarios'] || byNorm['usuarios'] || headers[0] || ''
+        usersColumn: byNorm['ndeusuarios'] || byNorm['usuarios'] || '',
+        growthColumn: byNorm['crecimientoporcentual'] || '',
+        newUsersColumn: byNorm['nuevosusuarios'] || ''
       };
     }
 
     function processUsersRow(row) {
-      const date = parseDate(row[usersState.dateColumn]);
-      const metrics = {};
-
-      usersState.metricColumns.forEach(col => {
-        metrics[col] = parseNumber(row[col]);
-      });
-
       return {
-        date,
+        date: parseDate(row[usersState.dateColumn]),
         rawDate: norm(row[usersState.dateColumn]),
-        metrics,
+        totalUsers: parseNumber(row[usersState.usersColumn]),
+        growthPct: parseNumber(row[usersState.growthColumn]),
+        newUsers: parseNumber(row[usersState.newUsersColumn]),
         raw: row
       };
     }
 
     function renderUsersModule() {
-      if (!usersState.raw.length || !usersState.primaryMetric || !els.usersSummary) {
-        if (els.usersSummary) {
-          els.usersSummary.innerHTML = '<p>No se pudieron detectar columnas de usuarios en la hoja.</p>';
-        }
-        return;
-      }
+      if (!els.usersSummary) return;
 
       const rows = [...usersState.raw]
         .filter(r => r.date && !isNaN(r.date))
         .sort((a, b) => a.date - b.date);
 
       if (!rows.length) {
-        els.usersSummary.innerHTML = '<p>No hay fechas interpretables en la hoja de usuarios.</p>';
+        els.usersSummary.innerHTML = '<p>No hay registros interpretables en la hoja de usuarios.</p>';
         return;
       }
 
       const latest = rows[rows.length - 1];
-      const previous = rows.length > 1 ? rows[rows.length - 2] : null;
+      const growthAvg = avg(rows.map(r => r.growthPct));
+      const newUsersAvg = avg(rows.map(r => r.newUsers));
+      const totals = rows.map(r => r.totalUsers).filter(v => v !== null);
+      const firstTotal = totals.length ? totals[0] : null;
+      const lastTotal = latest.totalUsers;
 
-      const latestMetricValues = usersState.metricColumns
-        .map(col => ({ label: col, value: latest.metrics[col] }))
-        .filter(x => x.value !== null);
+      const maxGrowthRow = rows
+        .filter(r => r.growthPct !== null)
+        .sort((a, b) => b.growthPct - a.growthPct)[0] || null;
 
-      makeChart('usersChartTotal', {
+      const maxNewUsersRow = rows
+        .filter(r => r.newUsers !== null)
+        .sort((a, b) => b.newUsers - a.newUsers)[0] || null;
+
+      els.usersKpiTotal.textContent = lastTotal !== null ? Math.round(lastTotal).toLocaleString('es-AR') : '0';
+      els.usersKpiGrowth.textContent = growthAvg !== null ? `${growthAvg.toFixed(2)}%` : '0%';
+      els.usersKpiNewAvg.textContent = newUsersAvg !== null ? Math.round(newUsersAvg).toLocaleString('es-AR') : '0';
+      els.usersKpiRows.textContent = rows.length.toLocaleString('es-AR');
+
+      makeChart('usersChartTrend', {
+        type: 'line',
+        data: {
+          labels: rows.map(r => fmtDate(r.date) || r.rawDate),
+          datasets: [{
+            label: 'N de usuarios',
+            data: rows.map(r => r.totalUsers),
+            tension: .25
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      makeChart('usersChartNewUsers', {
         type: 'bar',
         data: {
-          labels: latestMetricValues.map(x => x.label),
+          labels: rows.map(r => fmtDate(r.date) || r.rawDate),
           datasets: [{
-            label: 'Último valor',
-            data: latestMetricValues.map(x => x.value),
+            label: 'Nuevos usuarios',
+            data: rows.map(r => r.newUsers),
             borderWidth: 1
           }]
         },
@@ -1595,15 +1657,13 @@
         }
       });
 
-      const trendRows = rows.filter(r => r.metrics[usersState.primaryMetric] !== null);
-
-      makeChart('usersChartTrend', {
+      makeChart('usersChartGrowth', {
         type: 'line',
         data: {
-          labels: trendRows.map(r => fmtDate(r.date) || r.rawDate),
+          labels: rows.map(r => fmtDate(r.date) || r.rawDate),
           datasets: [{
-            label: usersState.primaryMetric,
-            data: trendRows.map(r => r.metrics[usersState.primaryMetric]),
+            label: 'Crecimiento porcentual',
+            data: rows.map(r => r.growthPct),
             tension: .25
           }]
         },
@@ -1614,60 +1674,14 @@
         }
       });
 
-      const datasetMetrics = usersState.metricColumns
-        .filter(col => rows.some(r => r.metrics[col] !== null))
-        .slice(0, 4);
-
-      makeChart('usersChartMetrics', {
-        type: 'line',
-        data: {
-          labels: rows.map(r => fmtDate(r.date) || r.rawDate),
-          datasets: datasetMetrics.map(col => ({
-            label: col,
-            data: rows.map(r => r.metrics[col]),
-            tension: .25
-          }))
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { position: 'bottom' } },
-          scales: { y: { beginAtZero: true } }
-        }
-      });
-
-      const current = latest.metrics[usersState.primaryMetric];
-      const prev = previous ? previous.metrics[usersState.primaryMetric] : null;
-      const delta = (current !== null && prev !== null) ? current - prev : null;
-
-      const growthCol = usersState.metricColumns.find(col => normKey(col).includes('crecimientoporcentual'));
-      const newUsersCol = usersState.metricColumns.find(col => normKey(col).includes('nuevosusuarios'));
-      const growthVal = growthCol ? latest.metrics[growthCol] : null;
-      const newUsersVal = newUsersCol ? latest.metrics[newUsersCol] : null;
-
-      const avgNewUsers = (() => {
-        if (!newUsersCol) return null;
-        const vals = rows.map(r => r.metrics[newUsersCol]).filter(v => v !== null);
-        if (!vals.length) return null;
-        return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
-      })();
-
-      const bestGrowth = (() => {
-        if (!growthCol) return null;
-        const ranked = rows
-          .filter(r => r.metrics[growthCol] !== null)
-          .sort((a,b) => b.metrics[growthCol] - a.metrics[growthCol])[0];
-        return ranked || null;
-      })();
-
       els.usersSummary.innerHTML = `
-        <p><strong>Último total de usuarios:</strong> ${current !== null ? String(current) : 'Sin dato'}</p>
-        <p><strong>Fecha más reciente:</strong> ${escapeHtml(fmtDate(latest.date) || latest.rawDate || 'Sin fecha')}</p>
-        <p><strong>Variación absoluta vs. registro anterior:</strong> ${delta === null ? 'Sin comparación' : String(delta)}</p>
-        <p><strong>Crecimiento porcentual del último corte:</strong> ${growthVal === null ? 'Sin dato' : String(growthVal) + '%'}</p>
-        <p><strong>Nuevos usuarios del último corte:</strong> ${newUsersVal === null ? 'Sin dato' : String(newUsersVal)}</p>
-        <p><strong>Promedio de nuevos usuarios por registro:</strong> ${avgNewUsers === null ? 'Sin dato' : String(avgNewUsers)}</p>
-        <p><strong>Mayor crecimiento registrado:</strong> ${bestGrowth ? String(bestGrowth.metrics[growthCol]) + '% el ' + escapeHtml(fmtDate(bestGrowth.date) || bestGrowth.rawDate) : 'Sin dato'}</p>
-        <p><strong>Lectura rápida:</strong> la serie muestra <strong>${rows.length}</strong> registros históricos, por lo que este módulo ya no depende de un único corte sino de una evolución acumulada.</p>
+        <p><strong>Serie histórica:</strong> ${rows.length} registros válidos de evolución.</p>
+        <p><strong>Último total:</strong> ${lastTotal !== null ? Math.round(lastTotal).toLocaleString('es-AR') : 'Sin dato'} usuarios al ${escapeHtml(fmtDate(latest.date) || latest.rawDate)}.</p>
+        <p><strong>Crecimiento porcentual promedio:</strong> ${growthAvg !== null ? growthAvg.toFixed(2) + '%' : 'Sin dato'} considerando todos los cortes con dato.</p>
+        <p><strong>Nuevos usuarios promedio:</strong> ${newUsersAvg !== null ? Math.round(newUsersAvg).toLocaleString('es-AR') : 'Sin dato'} por registro.</p>
+        <p><strong>Variación acumulada del período:</strong> ${firstTotal !== null && lastTotal !== null ? (lastTotal - firstTotal).toLocaleString('es-AR') : 'Sin dato'} usuarios desde el primer corte al último.</p>
+        <p><strong>Pico de crecimiento:</strong> ${maxGrowthRow ? maxGrowthRow.growthPct.toFixed(2) + '% el ' + escapeHtml(fmtDate(maxGrowthRow.date) || maxGrowthRow.rawDate) : 'Sin dato'}.</p>
+        <p><strong>Mayor alta puntual:</strong> ${maxNewUsersRow ? Math.round(maxNewUsersRow.newUsers).toLocaleString('es-AR') + ' usuarios el ' + escapeHtml(fmtDate(maxNewUsersRow.date) || maxNewUsersRow.rawDate) : 'Sin dato'}.</p>
       `;
     }
 
@@ -1685,8 +1699,10 @@
           const detected = detectUsersColumns(headers);
 
           usersState.dateColumn = detected.dateColumn;
-          usersState.metricColumns = detected.metricColumns;
-          usersState.primaryMetric = detected.primaryMetric;
+          usersState.usersColumn = detected.usersColumn;
+          usersState.growthColumn = detected.growthColumn;
+          usersState.newUsersColumn = detected.newUsersColumn;
+
           usersState.raw = results.data
             .map(processUsersRow)
             .filter(r => Object.values(r.raw).some(v => norm(v)));
