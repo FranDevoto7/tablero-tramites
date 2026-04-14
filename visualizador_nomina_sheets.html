@@ -1139,7 +1139,8 @@
 
     function renderObs() {
       const rows = state.filtered;
-      const conObs = rows.filter(r => norm(r.observaciones));
+      const total = rows.length;
+      const conObs = rows.filter(r => norm(r.observaciones)).length;
       const zimbra = rows.filter(r => norm(r.observaciones).toLowerCase().includes('zimbra')).length;
       const sinBoletin = rows.filter(r => !norm(r.boletin)).length;
       const sinFecha = rows.filter(r => !r.fecha).length;
@@ -1149,15 +1150,26 @@
         const dep = r.dependencia || 'Sin dependencia';
         depCounts[dep] = (depCounts[dep] || 0) + 1;
       });
+
       const topDep = topEntries(depCounts, 1)[0];
+      const topDepPct = topDep && total ? Math.round((topDep[1] / total) * 100) : 0;
+
+      let semaforo = 'verde';
+      let lectura = 'La distribución luce razonablemente equilibrada.';
+      if (sinBoletin > 0 || sinFecha > 0) {
+        semaforo = 'amarillo';
+        lectura = 'Hay faltantes de datos que conviene revisar antes de usar el tablero como base de decisión.';
+      }
+      if ((sinBoletin + sinFecha) / Math.max(total, 1) > 0.2) {
+        semaforo = 'rojo';
+        lectura = 'La calidad de datos empieza a condicionar la lectura general del tablero.';
+      }
 
       els.obsBox.innerHTML = `
-        <p><strong>${rows.length}</strong> movimientos en el filtro actual.</p>
-        <p><strong>${conObs.length}</strong> registros incluyen observaciones complementarias.</p>
-        <p><strong>${zimbra}</strong> observaciones mencionan Zimbra.</p>
-        <p><strong>${sinBoletin}</strong> registros no informan boletín oficial.</p>
-        <p><strong>${sinFecha}</strong> registros no tienen fecha interpretable.</p>
-        <p><strong>${topDep ? escapeHtml(topDep[0]) : 'Sin dato'}</strong> concentra la mayor cantidad visible con <strong>${topDep ? topDep[1] : 0}</strong> movimientos.</p>
+        <p><strong>Lectura general:</strong> semáforo ${semaforo}. ${lectura}</p>
+        <p><strong>Concentración:</strong> ${topDep ? escapeHtml(topDep[0]) : 'Sin dato'} reúne ${topDep ? topDep[1] : 0} movimientos, equivalente al ${topDepPct}% del total visible.</p>
+        <p><strong>Calidad del dato:</strong> ${sinBoletin} registros sin boletín oficial y ${sinFecha} sin fecha interpretable.</p>
+        <p><strong>Observaciones relevantes:</strong> ${conObs} registros incluyen notas adicionales; ${zimbra} mencionan Zimbra.</p>
       `;
     }
 
@@ -1425,13 +1437,17 @@
     function renderTaskInsights() {
       const rows = taskState.filtered;
       const total = rows.length || 1;
+      const openRows = rows.filter(r => !isDoneStatus(r.status));
       const overdue = rows.filter(r => dueBucket(r) === 'overdue').length;
       const done = rows.filter(r => isDoneStatus(r.status)).length;
+      const high = rows.filter(r => ['alta','high','critica','critical','urgente'].includes(normKey(r.priority))).length;
       const noOwner = rows.filter(r => !r.owner).length;
       const noAxis = rows.filter(r => !r.project).length;
       const noDue = rows.filter(r => !r.dueDate && !isDoneStatus(r.status)).length;
+
       const donePct = Math.round((done / total) * 100);
       const overduePct = Math.round((overdue / total) * 100);
+      const highPct = Math.round((high / total) * 100);
 
       const byAxis = {};
       rows.forEach(r => {
@@ -1441,17 +1457,53 @@
       const topAxis = topEntries(byAxis, 1)[0];
 
       const ownerLoad = {};
-      rows.forEach(r => { ownerLoad[r.owner || 'Sin asignar'] = (ownerLoad[r.owner || 'Sin asignar'] || 0) + 1; });
+      openRows.forEach(r => {
+        const key = r.owner || 'Sin asignar';
+        ownerLoad[key] = (ownerLoad[key] || 0) + 1;
+      });
       const topOwner = topEntries(ownerLoad, 1)[0];
+      const topOwnerPct = topOwner && openRows.length ? Math.round((topOwner[1] / openRows.length) * 100) : 0;
+
+      let salud = 'verde';
+      let mensajeSalud = 'El tablero muestra una carga relativamente controlada.';
+      if (overduePct >= 10 || highPct >= 25) {
+        salud = 'amarillo';
+        mensajeSalud = 'Hay presión operativa visible y conviene priorizar seguimiento.';
+      }
+      if (overduePct >= 20 || noOwner >= 3) {
+        salud = 'rojo';
+        mensajeSalud = 'El tablero sugiere riesgo operativo concreto: tareas vencidas o mal asignadas.';
+      }
 
       els.taskInsights.innerHTML = `
-        <div class="insight-item"><strong>${donePct}%</strong> del conjunto visible aparece como resuelto.</div>
-        <div class="insight-item"><strong>${overduePct}%</strong> del conjunto visible está vencido y abierto.</div>
-        <div class="insight-item"><strong>${noOwner}</strong> tareas no muestran responsable asignado.</div>
-        <div class="insight-item"><strong>${noAxis}</strong> tareas no muestran eje.</div>
-        <div class="insight-item"><strong>${topAxis ? escapeHtml(topAxis[0]) : 'Sin dato'}</strong> es el eje con más carga visible, con ${topAxis ? topAxis[1] : 0} tareas.</div>
-        <div class="insight-item"><strong>${noDue}</strong> tareas abiertas no tienen plazo interpretable.</div>
-        <div class="insight-item"><strong>${topOwner ? escapeHtml(topOwner[0]) : 'Sin dato'}</strong> concentra la mayor carga visible con ${topOwner ? topOwner[1] : 0} tareas.</div>
+        <div class="insight-item">
+          <strong>Estado general: ${salud}</strong>
+          ${mensajeSalud}
+        </div>
+        <div class="insight-item">
+          <strong>${donePct}% completadas</strong>
+          ${done} de ${rows.length} tareas visibles figuran como resueltas.
+        </div>
+        <div class="insight-item">
+          <strong>${overduePct}% vencidas</strong>
+          ${overdue} tareas abiertas están fuera de plazo.
+        </div>
+        <div class="insight-item">
+          <strong>${highPct}% prioridad alta</strong>
+          ${high} tareas están marcadas como alta, crítica o urgente.
+        </div>
+        <div class="insight-item">
+          <strong>${topAxis ? escapeHtml(topAxis[0]) : 'Sin dato'}</strong>
+          Es el eje con mayor carga visible, con ${topAxis ? topAxis[1] : 0} tareas.
+        </div>
+        <div class="insight-item">
+          <strong>${topOwner ? escapeHtml(topOwner[0]) : 'Sin dato'}</strong>
+          Concentra el ${topOwnerPct}% de las tareas abiertas visibles.
+        </div>
+        <div class="insight-item">
+          <strong>Calidad de gestión</strong>
+          ${noOwner} tareas sin responsable, ${noAxis} sin eje y ${noDue} abiertas sin plazo interpretable.
+        </div>
       `;
     }
 
@@ -1605,8 +1657,28 @@
       const firstTotal = totals.length ? totals[0] : null;
       const lastTotal = latest.totalUsers;
 
-      const maxGrowthRow = rows.filter(r => r.growthPct !== null).sort((a, b) => b.growthPct - a.growthPct)[0] || null;
-      const maxNewUsersRow = rows.filter(r => r.newUsers !== null).sort((a, b) => b.newUsers - a.newUsers)[0] || null;
+      const maxGrowthRow = rows
+        .filter(r => r.growthPct !== null)
+        .sort((a, b) => b.growthPct - a.growthPct)[0] || null;
+
+      const maxNewUsersRow = rows
+        .filter(r => r.newUsers !== null)
+        .sort((a, b) => b.newUsers - a.newUsers)[0] || null;
+
+      const acumuladoPct = (firstTotal !== null && lastTotal !== null && firstTotal !== 0)
+        ? ((lastTotal - firstTotal) / firstTotal) * 100
+        : null;
+
+      let tendencia = 'estable';
+      let lectura = 'La serie no muestra una señal extraordinaria de aceleración.';
+      if (growthAvg !== null && growthAvg > 10) {
+        tendencia = 'expansiva';
+        lectura = 'La base viene creciendo a un ritmo alto en promedio.';
+      }
+      if (growthAvg !== null && growthAvg > 20) {
+        tendencia = 'muy expansiva';
+        lectura = 'La serie sugiere una etapa de adopción acelerada.';
+      }
 
       els.usersKpiTotal.textContent = lastTotal !== null ? Math.round(lastTotal).toLocaleString('es-AR') : '0';
       els.usersKpiGrowth.textContent = growthAvg !== null ? `${growthAvg.toFixed(2)}%` : '0%';
@@ -1617,35 +1689,59 @@
         type: 'line',
         data: {
           labels: rows.map(r => fmtDate(r.date) || r.rawDate),
-          datasets: [{ label: 'N de usuarios', data: rows.map(r => r.totalUsers), tension: .25 }]
+          datasets: [{
+            label: 'N de usuarios',
+            data: rows.map(r => r.totalUsers),
+            tension: .25
+          }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
       });
 
       makeChart('usersChartNewUsers', {
         type: 'bar',
         data: {
           labels: rows.map(r => fmtDate(r.date) || r.rawDate),
-          datasets: [{ label: 'Nuevos usuarios', data: rows.map(r => r.newUsers), borderWidth: 1 }]
+          datasets: [{
+            label: 'Nuevos usuarios',
+            data: rows.map(r => r.newUsers),
+            borderWidth: 1
+          }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
       });
 
       makeChart('usersChartGrowth', {
         type: 'line',
         data: {
           labels: rows.map(r => fmtDate(r.date) || r.rawDate),
-          datasets: [{ label: 'Crecimiento porcentual', data: rows.map(r => r.growthPct), tension: .25 }]
+          datasets: [{
+            label: 'Crecimiento porcentual',
+            data: rows.map(r => r.growthPct),
+            tension: .25
+          }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
       });
 
       els.usersSummary.innerHTML = `
-        <p><strong>Serie histórica:</strong> ${rows.length} registros válidos de evolución.</p>
-        <p><strong>Último total:</strong> ${lastTotal !== null ? Math.round(lastTotal).toLocaleString('es-AR') : 'Sin dato'} usuarios al ${escapeHtml(fmtDate(latest.date) || latest.rawDate)}.</p>
-        <p><strong>Crecimiento porcentual promedio:</strong> ${growthAvg !== null ? growthAvg.toFixed(2) + '%' : 'Sin dato'} considerando todos los cortes con dato.</p>
-        <p><strong>Nuevos usuarios promedio:</strong> ${newUsersAvg !== null ? Math.round(newUsersAvg).toLocaleString('es-AR') : 'Sin dato'} por registro.</p>
-        <p><strong>Variación acumulada del período:</strong> ${firstTotal !== null && lastTotal !== null ? (lastTotal - firstTotal).toLocaleString('es-AR') : 'Sin dato'} usuarios desde el primer corte al último.</p>
+        <p><strong>Lectura general:</strong> la tendencia reciente es <strong>${tendencia}</strong>. ${lectura}</p>
+        <p><strong>Último corte:</strong> ${lastTotal !== null ? Math.round(lastTotal).toLocaleString('es-AR') : 'Sin dato'} usuarios al ${escapeHtml(fmtDate(latest.date) || latest.rawDate)}.</p>
+        <p><strong>Crecimiento promedio:</strong> ${growthAvg !== null ? growthAvg.toFixed(2) + '%' : 'Sin dato'} por registro válido.</p>
+        <p><strong>Nuevos usuarios promedio:</strong> ${newUsersAvg !== null ? Math.round(newUsersAvg).toLocaleString('es-AR') : 'Sin dato'} por corte.</p>
+        <p><strong>Variación acumulada:</strong> ${firstTotal !== null && lastTotal !== null ? (lastTotal - firstTotal).toLocaleString('es-AR') : 'Sin dato'} usuarios, equivalente a ${acumuladoPct !== null ? acumuladoPct.toFixed(2) + '%' : 'Sin dato'} desde el primer registro.</p>
         <p><strong>Pico de crecimiento:</strong> ${maxGrowthRow ? maxGrowthRow.growthPct.toFixed(2) + '% el ' + escapeHtml(fmtDate(maxGrowthRow.date) || maxGrowthRow.rawDate) : 'Sin dato'}.</p>
         <p><strong>Mayor alta puntual:</strong> ${maxNewUsersRow ? Math.round(maxNewUsersRow.newUsers).toLocaleString('es-AR') + ' usuarios el ' + escapeHtml(fmtDate(maxNewUsersRow.date) || maxNewUsersRow.rawDate) : 'Sin dato'}.</p>
       `;
@@ -1663,13 +1759,16 @@
         complete: (results) => {
           const headers = results.meta.fields || [];
           const detected = detectUsersColumns(headers);
+
           usersState.dateColumn = detected.dateColumn;
           usersState.usersColumn = detected.usersColumn;
           usersState.growthColumn = detected.growthColumn;
           usersState.newUsersColumn = detected.newUsersColumn;
+
           usersState.raw = results.data
             .map(processUsersRow)
             .filter(r => Object.values(r.raw).some(v => norm(v)));
+
           renderUsersModule();
         },
         error: () => {
